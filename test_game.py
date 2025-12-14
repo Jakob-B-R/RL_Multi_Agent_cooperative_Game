@@ -1,4 +1,4 @@
-from main import Game, Player
+from main import Game, Player, REWARD_VALID_PLAY, REWARD_EXCELLENT_PLAY, REWARD_INVALID, REWARD_CANT_PLAY, REWARD_WIN, REWARD_PER_DECK_CARD, REWARD_GAP_PENALTY
 import math
 
 # Simplified action format: [card_index, pile_index]
@@ -57,18 +57,18 @@ def test_descending_pile_play():
 
 
 def test_invalid_card_index():
-    """Test that invalid card index returns penalty."""
+    """Test that invalid card index returns penalty but game continues."""
     game = Game(num_players=1, hand_size=6)
     obs, _ = game.reset()
     
     # Card index 10 is out of bounds
     obs, reward, done, trunc, _ = game.step([10, 0])
-    assert done, "Game should end on invalid action"
-    assert reward == -10, "Invalid card index should return -10 penalty"
+    assert not done, "Game should continue on invalid action (new behavior)"
+    assert reward == REWARD_INVALID, f"Invalid card index should return {REWARD_INVALID} penalty"
 
 
 def test_invalid_pile_play():
-    """Test that playing invalid card on pile returns penalty."""
+    """Test that playing invalid card on pile returns penalty but game continues."""
     game_initial_state = {
         "num_to_play": 2,
         "piles_up": [50, 50],
@@ -84,16 +84,17 @@ def test_invalid_pile_play():
     
     # Try to play card 0 (value 10) on ascending pile at 50 - invalid!
     obs, reward, done, trunc, _ = game.step([0, 0])
-    assert done, "Invalid play should end game"
-    assert reward == -10, "Invalid play should return -10 penalty"
+    assert not done, "Game should continue on invalid play (new behavior)"
+    assert reward == REWARD_INVALID, f"Invalid play should return {REWARD_INVALID} penalty"
 
 
 def test_ten_trick_ascending():
-    """Test the -10 trick on ascending pile."""
+    """Test the -10 trick on ascending pile gives excellent reward."""
     game_initial_state = {
         "num_to_play": 2,
         "piles_up": [50, 50],
         "piles_down": [100, 100],
+        "deck": list(range(2, 40)),  # Deck with enough cards for initialization
         "players": [
             {"name": "0", "hand": [40, 55, 60, 70, 80, 90]},
             {"name": "1", "hand": [11, 21, 31, 41, 51, 61]}
@@ -103,20 +104,24 @@ def test_ten_trick_ascending():
     game = Game()
     game.set_game_state(game_initial_state)
     
+    deck_size = len(game.deck)
+    expected_reward = REWARD_EXCELLENT_PLAY + (deck_size * REWARD_PER_DECK_CARD)
+    
     # Play card 0 (value 40) on pile 0 (at 50) - this is the -10 trick!
     obs, reward, done, trunc, _ = game.step([0, 0])
     
     assert not done
-    assert reward == 1, "The -10 trick should give max reward of 1"
+    assert reward == expected_reward, f"The -10 trick should give reward of {expected_reward}, got {reward}"
     assert 40 in game.piles_up
 
 
 def test_ten_trick_descending():
-    """Test the +10 trick on descending pile."""
+    """Test the +10 trick on descending pile gives excellent reward."""
     game_initial_state = {
         "num_to_play": 2,
         "piles_up": [1, 1],
         "piles_down": [50, 50],
+        "deck": list(range(2, 40)),  # Deck with enough cards for initialization
         "players": [
             {"name": "0", "hand": [60, 55, 30, 20, 10, 5]},
             {"name": "1", "hand": [11, 21, 31, 41, 51, 61]}
@@ -126,11 +131,14 @@ def test_ten_trick_descending():
     game = Game()
     game.set_game_state(game_initial_state)
     
+    deck_size = len(game.deck)
+    expected_reward = REWARD_EXCELLENT_PLAY + (deck_size * REWARD_PER_DECK_CARD)
+    
     # Play card 0 (value 60) on pile 2 (descending at 50) - this is the +10 trick!
     obs, reward, done, trunc, _ = game.step([0, 2])
     
     assert not done
-    assert reward == 1, "The +10 trick should give max reward of 1"
+    assert reward == expected_reward, f"The +10 trick should give reward of {expected_reward}, got {reward}"
     assert 60 in game.piles_down
 
 
@@ -178,6 +186,40 @@ def test_observation_space_keys():
         f"Observation keys should be {expected_keys}, got {set(obs.keys())}"
 
 
+def test_check_env():
+    """Run gymnasium's check_env to validate environment compliance."""
+    from gymnasium.utils.env_checker import check_env
+    game = Game()
+    check_env(game)  # Raises exception if any issues found
+
+
+def test_reward_shaping():
+    """Test that reward shaping (gap penalty + deck bonus) works correctly."""
+    game_initial_state = {
+        "num_to_play": 2,
+        "piles_up": [10, 10],
+        "piles_down": [100, 100],
+        "deck": list(range(71, 99)),  # Deck with enough cards for initialization
+        "players": [
+            {"name": "0", "hand": [20, 30, 40, 50, 60, 70]},
+            {"name": "1", "hand": [11, 21, 31, 41, 51, 61]}
+        ],
+    }
+    
+    game = Game()
+    game.set_game_state(game_initial_state)
+    
+    deck_size = len(game.deck)  # 8
+    gap = 20 - 10  # card 20 on pile at 10 = gap of 10
+    expected_reward = REWARD_VALID_PLAY + (gap * REWARD_GAP_PENALTY) + (deck_size * REWARD_PER_DECK_CARD)
+    
+    # Play card 0 (value 20) on pile 0 (at 10)
+    obs, reward, done, trunc, _ = game.step([0, 0])
+    
+    assert not done
+    assert abs(reward - expected_reward) < 0.0001, f"Expected reward {expected_reward}, got {reward}"
+
+
 if __name__ == '__main__':
     print("Running tests...")
     
@@ -207,5 +249,11 @@ if __name__ == '__main__':
     
     test_turn_progression()
     print("✓ test_turn_progression passed")
+    
+    test_reward_shaping()
+    print("✓ test_reward_shaping passed")
+    
+    test_check_env()
+    print("✓ test_check_env passed")
     
     print("\n✅ All tests passed!")
