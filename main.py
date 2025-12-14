@@ -10,6 +10,17 @@ from gymnasium.utils.env_checker import check_env
 from gymnasium import spaces
 import numpy as np
 
+# Reward constants
+REWARD_VALID_PLAY = 1.0
+REWARD_EXCELLENT_PLAY = 5.0   # For ±10 trick (playing pile - 10 or pile + 10)
+REWARD_WIN = 100.0
+REWARD_INVALID = -0.5         # Reduced from -10
+REWARD_CANT_PLAY = -1.0
+
+# Shaping rewards
+REWARD_PER_DECK_CARD = 0.01   # Bonus for cards remaining in deck
+REWARD_GAP_PENALTY = -0.001   # Per gap point
+
 class Player:
     def __init__(self, player_id, hand):
         self.player_id = player_id
@@ -267,11 +278,11 @@ class Game(gym.Env):
             self.piles_up, self.piles_down, current_player.hand, [], {}
         )
         if card_check is None:
-            return self._get_observation(), -5, True, False, {}
+            return self._get_observation(), REWARD_CANT_PLAY, True, False, {}
         
         # Validate card index
         if card_index >= len(current_player.hand):
-            return self._get_observation(), -10, True, True, {}
+            return self._get_observation(), REWARD_INVALID, False, False, {}
         
         card = current_player.hand[card_index]
         
@@ -281,9 +292,16 @@ class Game(gym.Env):
             if card == (pile - 10) or card > pile:
                 self.piles_up[pile_index] = card
                 current_player.hand.remove(card)
-                score = 1 if card == pile - 10 else 1 + -(pile - card)**2/(2*(98**2))
+                # Excellent play for ±10 trick, otherwise base reward with gap penalty
+                if card == pile - 10:
+                    score = REWARD_EXCELLENT_PLAY
+                else:
+                    gap = card - pile
+                    score = REWARD_VALID_PLAY + (gap * REWARD_GAP_PENALTY)
+                # Add deck progress bonus
+                score += len(self.deck) * REWARD_PER_DECK_CARD
             else:
-                return self._get_observation(), -10, True, True, {}
+                return self._get_observation(), REWARD_INVALID, False, False, {}
         # Handle descending piles
         elif pile_index - len(self.piles_up) < len(self.piles_down):
             down_idx = pile_index - len(self.piles_up)
@@ -291,15 +309,22 @@ class Game(gym.Env):
             if card == (pile + 10) or card < pile:
                 self.piles_down[down_idx] = card
                 current_player.hand.remove(card)
-                score = 1 if card == pile + 10 else 1 + -(card - pile)**2/(2*(98**2))
+                # Excellent play for ±10 trick, otherwise base reward with gap penalty
+                if card == pile + 10:
+                    score = REWARD_EXCELLENT_PLAY
+                else:
+                    gap = pile - card
+                    score = REWARD_VALID_PLAY + (gap * REWARD_GAP_PENALTY)
+                # Add deck progress bonus
+                score += len(self.deck) * REWARD_PER_DECK_CARD
             else:
-                return self._get_observation(), -10, True, True, {}
+                return self._get_observation(), REWARD_INVALID, False, False, {}
         else:
-            return self._get_observation(), -10, True, True, {}
+            return self._get_observation(), REWARD_INVALID, False, False, {}
         
         # Check win condition
         if self.check_if_game_done():
-            return self._get_observation(), 1000, True, False, {}
+            return self._get_observation(), REWARD_WIN, True, False, {}
         
         # Handle turn progression
         self.current_player_num_played += 1
