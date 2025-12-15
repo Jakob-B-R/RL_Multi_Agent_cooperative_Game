@@ -1,4 +1,4 @@
-from main import Game, Player, REWARD_VALID_PLAY, REWARD_EXCELLENT_PLAY, REWARD_INVALID, REWARD_CANT_PLAY, REWARD_WIN, REWARD_PER_DECK_CARD, REWARD_GAP_PENALTY
+from main import Game, Player, REWARD_VALID_PLAY, REWARD_EXCELLENT_PLAY, REWARD_INVALID, REWARD_CANT_PLAY, REWARD_WIN
 import math
 
 # Simplified action format: [card_index, pile_index]
@@ -104,8 +104,7 @@ def test_ten_trick_ascending():
     game = Game()
     game.set_game_state(game_initial_state)
     
-    deck_size = len(game.deck)
-    expected_reward = REWARD_EXCELLENT_PLAY + (deck_size * REWARD_PER_DECK_CARD)
+    expected_reward = REWARD_EXCELLENT_PLAY
     
     # Play card 0 (value 40) on pile 0 (at 50) - this is the -10 trick!
     obs, reward, done, trunc, _ = game.step([0, 0])
@@ -131,8 +130,7 @@ def test_ten_trick_descending():
     game = Game()
     game.set_game_state(game_initial_state)
     
-    deck_size = len(game.deck)
-    expected_reward = REWARD_EXCELLENT_PLAY + (deck_size * REWARD_PER_DECK_CARD)
+    expected_reward = REWARD_EXCELLENT_PLAY
     
     # Play card 0 (value 60) on pile 2 (descending at 50) - this is the +10 trick!
     obs, reward, done, trunc, _ = game.step([0, 2])
@@ -209,9 +207,9 @@ def test_reward_shaping():
     game = Game()
     game.set_game_state(game_initial_state)
     
-    deck_size = len(game.deck)  # 8
     gap = 20 - 10  # card 20 on pile at 10 = gap of 10
-    expected_reward = REWARD_VALID_PLAY + (gap * REWARD_GAP_PENALTY) + (deck_size * REWARD_PER_DECK_CARD)
+    # Gap is 10, so it falls into "elif gap < 20" bucket => +0.4 bonus
+    expected_reward = REWARD_VALID_PLAY + 0.4
     
     # Play card 0 (value 20) on pile 0 (at 10)
     obs, reward, done, trunc, _ = game.step([0, 0])

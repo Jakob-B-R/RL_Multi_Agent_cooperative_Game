@@ -18,8 +18,8 @@ REWARD_INVALID = -0.5         # Reduced from -10
 REWARD_CANT_PLAY = -1.0
 
 # Shaping rewards
-REWARD_PER_DECK_CARD = 0.01   # Bonus for cards remaining in deck
-REWARD_GAP_PENALTY = -0.001   # Per gap point
+# Shaping rewards
+# REWARD_GAP_PENALTY removed in favor of explicit close-play bonuses in step()
 
 class Player:
     def __init__(self, player_id, hand):
@@ -297,9 +297,13 @@ class Game(gym.Env):
                     score = REWARD_EXCELLENT_PLAY
                 else:
                     gap = card - pile
-                    score = REWARD_VALID_PLAY + (gap * REWARD_GAP_PENALTY)
-                # Add deck progress bonus
-                score += len(self.deck) * REWARD_PER_DECK_CARD
+                    # Positive reinforcement for good plays
+                    if gap < 10:
+                        score = REWARD_VALID_PLAY + 1.0  # Great play
+                    elif gap < 20:
+                        score = REWARD_VALID_PLAY + 0.4  # Good play
+                    else:
+                        score = REWARD_VALID_PLAY + 0.1  # Valid but meh
             else:
                 return self._get_observation(), REWARD_INVALID, False, False, {}
         # Handle descending piles
@@ -314,9 +318,13 @@ class Game(gym.Env):
                     score = REWARD_EXCELLENT_PLAY
                 else:
                     gap = pile - card
-                    score = REWARD_VALID_PLAY + (gap * REWARD_GAP_PENALTY)
-                # Add deck progress bonus
-                score += len(self.deck) * REWARD_PER_DECK_CARD
+                    # Positive reinforcement for good plays
+                    if gap < 10:
+                        score = REWARD_VALID_PLAY + 1.0  # Great play
+                    elif gap < 20:
+                        score = REWARD_VALID_PLAY + 0.4  # Good play
+                    else:
+                        score = REWARD_VALID_PLAY + 0.1  # Valid but meh
             else:
                 return self._get_observation(), REWARD_INVALID, False, False, {}
         else:
@@ -467,7 +475,7 @@ if __name__ == '__main__':
     
     from stable_baselines3 import PPO
     
-    NUM_PLAYERS = 4
+    NUM_PLAYERS = 2
     HAND_SIZE = 6
     NUM_MUST_PLAY = 2  
     PILE_CONFIG = (2,2) # 2 ascending, 2 descending
@@ -489,7 +497,7 @@ if __name__ == '__main__':
     #     obs, reward, done, trunc, info = env.step(action)
     #     env.render()
 
-    model = PPO('MultiInputPolicy', env, verbose =1)
+    model = PPO('MultiInputPolicy', env, verbose =1, ent_coef = 0.1)
     
     # model = PPO.load('ppo_jaketest_agent', env)
    
