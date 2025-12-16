@@ -12,7 +12,7 @@ import numpy as np
 
 # Reward constants
 REWARD_VALID_PLAY = 1.0
-REWARD_EXCELLENT_PLAY = 5.0   # For ±10 trick (playing pile - 10 or pile + 10)
+REWARD_EXCELLENT_PLAY = 10.0  # For ±10 trick (playing pile - 10 or pile + 10)
 REWARD_WIN = 100.0
 REWARD_INVALID = -0.5         # Reduced from -10
 REWARD_CANT_PLAY = -1.0
